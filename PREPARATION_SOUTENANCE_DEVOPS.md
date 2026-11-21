@@ -22,6 +22,11 @@
 | Tests users-microservice (6 tests) | ✅ vérifié | journal du 21/11 : `Tests run: 6, Failures: 0, Errors: 0`, `BUILD SUCCESS` |
 | Frontend : build / tests | ✅ vérifié | 21/11 : `npm run build` → « Application bundle generation complete » (simple avertissement de budget) ; `npm run test:ci` → `TOTAL: 15 SUCCESS` |
 | Pipeline GitHub Actions | ✅ vérifié | 21/11, run 44946303887 (commit `355a5dd`) : 4 jobs verts en 3 min 18 — Maven backend 17 tests, Maven users 6 tests, Angular 15 tests, Docker Compose + smoke test 7/7 avant et après redémarrage |
+| Branches + pull requests, protection de `main` | ✅ vérifié | PR #1, #2, #4 fusionnées après CI verte ; PR #3 (régression volontaire) rouge et **BLOCKED** |
+| Matrice Java 17 / 21 + rapports en artefacts | ✅ vérifié | 6 jobs verts ; artefacts `tests-backend-java17/21`, `tests-users-microservice-java17/21`, `tests-frontend-couverture` |
+| Tags v1.0.0, v1.1.0, v1.1.1 : promotion + mise en service | ✅ vérifié | workflow Release vert pour les 3 tags ; digest `v1.0.0` = digest `sha-4137c8a` (jamais reconstruite) |
+| Retour arrière | ✅ vérifié | PC : v1.1.0 → `scripts/rollback.sh` → v1.0.0 (données conservées) ; GitHub : run Deploy 44958718332 |
+| Version en service (PC) | ✅ v1.1.1 | `/health` et pied de page « Version en service : v1.1.1 » ; détails dans `docs/FICHE.md` |
 
 **Avant la soutenance**, lance une fois :
 ```powershell
