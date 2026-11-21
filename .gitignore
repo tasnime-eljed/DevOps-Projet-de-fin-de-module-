@@ -53,3 +53,6 @@ verification-logs/
 
 # Sauvegardes et exports de bases locales (donnees personnelles)
 backups/
+
+# Etat local des mises en service (scripts/deploy.sh)
+.deploy/

@@ -123,6 +123,8 @@ Ce mode est prévu pour le développement et la démonstration locale ; en produ
 
 ## 6. Construction et démarrage avec Docker Compose
 
+**Démarrage en une commande** (après avoir créé `.env`) : `docker compose up -d --build --wait`
+
 ```powershell
 cd C:\3eme\devops_workshop\DevOps-Projet-de-fin-de-module
 
@@ -157,6 +159,7 @@ MySQL n'est volontairement pas publié : pas de conflit avec un MySQL local (XAM
 | POST | `/users/register` | public — crée un compte désactivé et envoie un code par email |
 | GET | `/users/verifyEmail/{code}` | public — active le compte |
 | GET | `/users/all` | ADMIN |
+| GET | `/users/health` | public — santé + base MySQL + version (200 / 503) |
 
 **backend** (`/departement_employee`)
 
@@ -167,6 +170,9 @@ MySQL n'est volontairement pas publié : pas de conflit avec un MySQL local (XAM
 | DELETE | `/api/{id}` | ADMIN |
 | GET | `/dep` (Spring Data REST, format HAL) | ADMIN ou USER |
 | PUT | `/dep/{id}` | ADMIN |
+| GET | `/health` | public — santé + base MySQL + version (200 / 503) |
+
+**frontend** (Nginx) : `GET /health` public — santé du serveur web.
 
 ## 9. Arrêter et relancer sans perte de données
 
@@ -257,17 +263,54 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1
 
 Le bilan est écrit dans `verification-logs\derniere-verification.log` (ignoré par Git, aucun secret affiché).
 
-## 12. Pipeline GitHub Actions
+## 12. Chaîne CI/CD (GitHub Actions)
 
-Fichier : `.github/workflows/ci.yml`. Déclenchement : push et pull request sur `main`.
+### Flux de travail Git
+```
+branche feature/...  ──►  pull request vers main  ──►  CI (tests + images)  ──►  merge
+                                                        sur main : images publiées sha-<commit>
+git tag vX.Y.Z  ──►  Release : même image re-taguée vX.Y.Z  ──►  mise en service + santé
+```
+- Aucun push direct sur `main` : chaque changement passe par une **pull request** dont la CI doit être verte.
+- Messages de commit courts et explicites ; aucun secret (`.env`, `backups/`, exports SQL sont ignorés).
 
+### `.github/workflows/ci.yml` — pull request et push sur `main`
 | Job | Contenu |
 |---|---|
-| `java` (matrice backend / users-microservice) | Java 17 + cache Maven, MySQL 8.4 en service, `mvn verify` |
-| `frontend` | Node 24 + cache npm, `npm ci`, `npm run build`, tests Karma en Chrome Headless |
-| `docker` | `.env` aléatoire, `docker compose config/build/up --wait`, tests de bout en bout (`scripts/smoke-test.sh`), test de persistance |
+| `java` (matrice 2 modules × **Java 17 et 21**) | MySQL 8.4 de test, `mvn verify` ; rapport Surefire publié en **artefact** à chaque exécution |
+| `frontend` | `npm ci`, build de production, tests Karma + couverture (artefact `tests-frontend-couverture`) |
+| `docker` (**needs** java + frontend) | construit les 3 images `sha-<commit>`, `up --wait` (HEALTHCHECK), `scripts/smoke-test.sh`, test de persistance ; **sur main uniquement** : publie ces mêmes images sur `ghcr.io/tasnime-eljed/devops-*` |
 
-Permissions minimales (`contents: read`). **Aucune image n'est publiée et rien n'est déployé.** La CI génère ses propres secrets aléatoires : aucun GitHub Secret n'est nécessaire. Si un déploiement est ajouté plus tard, ses secrets devront être enregistrés dans *Settings → Secrets and variables → Actions*, jamais dans le YAML.
+**Matrice Java** : les applications ciblent Java 17 (`<java.version>17`). La matrice vérifie qu'elles compilent et passent leurs tests aussi sur Java 21 (LTS suivante) : une montée de version est donc possible sans casser le projet.
+
+### `.github/workflows/release.yml` — tag `vX.Y.Z`
+1. **Promotion** : `docker buildx imagetools create` ajoute le tag `vX.Y.Z` aux images `sha-<commit>` déjà testées → **même digest, aucune reconstruction**.
+2. **Mise en service automatique** (`deploy.yml`, environnement GitHub `test`) : `scripts/deploy.sh vX.Y.Z`, contrôle de santé et login JWT.
+
+### `.github/workflows/deploy.yml` — manuel (*Actions → Deploy → Run workflow*)
+Paramètres `version` et `rollback` : met `version` en service puis, si `rollback` est rempli, **revient** à cette version et revérifie la santé.
+
+Permissions minimales : `contents: read` par défaut, `packages: write` uniquement pour les jobs qui publient. Aucun GitHub Secret n'est nécessaire (`GITHUB_TOKEN` automatique, `.env` aléatoire en CI).
+
+## 12 bis. Livrer une version et revenir en arrière
+
+```bash
+# 1. publier : le commit doit être sur main avec une CI verte
+git tag v1.0.0
+git push origin v1.0.0              # -> workflow Release (promotion + mise en service)
+
+# 2. mettre en service sur ce PC (environnement de test local, données conservées)
+bash scripts/deploy.sh v1.0.0
+
+# 3. version suivante
+bash scripts/deploy.sh v1.1.0
+
+# 4. retour arrière (images déjà publiées : rien n'est reconstruit)
+bash scripts/rollback.sh            # version précédente mémorisée, ou : bash scripts/rollback.sh v1.0.0
+```
+`deploy.sh` : `docker compose pull` des images `vX.Y.Z`, `up --no-build --wait`, puis `smoke-test.sh` vérifie les 3 routes `/health` **et** la version affichée. Code de sortie 0 si la version est saine, non nul sinon. Les versions en service sont mémorisées dans `.deploy/` (ignoré par Git).
+
+Version en service : `curl.exe http://localhost:8088/departement_employee/health`
 
 ## 13. Dépannage
 

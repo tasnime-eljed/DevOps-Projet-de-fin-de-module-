@@ -1,7 +1,13 @@
 # =====================================================================
-#  CI du monorepo : backend, users-microservice, frontend, images Docker
-#  et test de bout en bout avec Docker Compose.
-#  Aucune image n'est publiee et rien n'est deploye.
+#  CI du monorepo (merge request = pull request GitHub)
+#   1. tests Maven (backend, users-microservice) sur Java 17 ET 21 (matrice)
+#   2. build + tests Angular
+#   3. (needs 1 et 2) construction des 3 images Docker, tests de bout en bout
+#      avec Docker Compose, persistance MySQL
+#   4. sur main uniquement : publication des images TESTEES sur ghcr.io
+#      avec le tag sha-<commit>. Le workflow release.yml leur ajoutera
+#      ensuite le tag vX.Y.Z SANS les reconstruire.
+#  Rapports de tests : publies en artefacts a chaque execution.
 # =====================================================================
 name: CI
 
@@ -11,7 +17,7 @@ on:
   pull_request:
     branches: [ main ]
 
-# Permissions minimales : lecture du code uniquement
+# Permissions minimales par defaut : lecture du code
 permissions:
   contents: read
 
@@ -19,18 +25,22 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IMAGE_REGISTRY: ghcr.io/tasnime-eljed
+
 jobs:
 
   # ------------------------------------------------------------------
-  # Backend + users-microservice : compilation et tests Maven
-  # (base MySQL de test jetable fournie par un conteneur "service")
+  # Tests Maven : 2 modules x 2 versions de Java (matrice)
   # ------------------------------------------------------------------
   java:
-    name: Maven - ${{ matrix.module }}
+    name: Maven - ${{ matrix.module }} - Java ${{ matrix.java }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        module: [ backend, users-microservice ]
+        java: [ '17', '21' ]
         include:
           - module: backend
             database: departement_employee_test
@@ -56,23 +66,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Java 17 (Temurin) + cache Maven
+      - name: Java ${{ matrix.java }} (Temurin) + cache Maven
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: ${{ matrix.java }}
           cache: maven
           cache-dependency-path: ${{ matrix.module }}/pom.xml
 
       - name: Compilation + tests (mvn verify)
         run: mvn -B verify
 
-      - name: Rapports de tests (en cas d'echec)
-        if: failure()
+      - name: Rapport de tests (artefact)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-${{ matrix.module }}
+          name: tests-${{ matrix.module }}-java${{ matrix.java }}
           path: ${{ matrix.module }}/target/surefire-reports/
+          if-no-files-found: warn
 
   # ------------------------------------------------------------------
   # Frontend Angular : installation, build de production, tests Karma
@@ -102,16 +113,29 @@ jobs:
       - name: Autoriser Chrome Headless
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
-      - name: Tests unitaires (Chrome Headless)
-        run: npm run test:ci
+      - name: Tests unitaires (Chrome Headless) + couverture
+        run: npm run test:ci -- --code-coverage
+
+      - name: Rapport de tests et couverture (artefact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-frontend-couverture
+          path: frontend/coverage/
+          if-no-files-found: warn
 
   # ------------------------------------------------------------------
-  # Images Docker + demarrage complet Docker Compose + tests de bout en bout
+  # Images Docker (apres les tests) + tests de bout en bout + publication
   # ------------------------------------------------------------------
   docker:
-    name: Docker Compose - build et tests de bout en bout
+    name: Docker - images, tests de bout en bout, publication
     runs-on: ubuntu-latest
     needs: [ java, frontend ]
+    permissions:
+      contents: read
+      packages: write      # publication sur ghcr.io (uniquement sur main)
+    env:
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -132,30 +156,49 @@ jobs:
       - name: Valider docker-compose.yml
         run: docker compose config --quiet
 
-      - name: Construire les 3 images
+      - name: Construire les 3 images (tag sha-<commit>)
         run: docker compose build
 
-      - name: Demarrer la pile et attendre les healthchecks
-        run: docker compose up -d --wait --wait-timeout 300
+      - name: Demarrer la pile et attendre les HEALTHCHECK
+        run: docker compose up -d --no-build --wait --wait-timeout 300
 
       - name: Etat des conteneurs
         run: docker compose ps
 
-      - name: Tests de bout en bout (Nginx -> backend / users-microservice -> MySQL)
+      - name: Tests de bout en bout (sante, securite, login JWT)
         run: |
           set -a; . ./.env; set +a
-          bash scripts/smoke-test.sh
+          EXPECTED_VERSION="$IMAGE_TAG" bash scripts/smoke-test.sh
 
       - name: Persistance MySQL (redemarrage sans supprimer le volume)
         run: |
           docker compose down
-          docker compose up -d --wait --wait-timeout 300
+          docker compose up -d --no-build --wait --wait-timeout 300
           set -a; . ./.env; set +a
-          bash scripts/smoke-test.sh
+          EXPECTED_VERSION="$IMAGE_TAG" bash scripts/smoke-test.sh
 
-      - name: Logs (en cas d'echec)
+      - name: Logs des conteneurs (artefact, en cas d'echec)
         if: failure()
-        run: docker compose logs --no-color --tail 200
+        run: docker compose logs --no-color > compose-logs.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs-docker-compose
+          path: compose-logs.txt
+
+      # ---- Publication : seulement apres fusion sur main (jamais depuis une PR) ----
+      - name: Connexion a ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publier les images testees (tag sha-<commit>)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker compose push backend users-microservice frontend
 
       - name: Nettoyage (environnement CI jetable)
         if: always()
