@@ -105,4 +105,12 @@ class UsersMicroserviceApplicationTests {
     void listeUtilisateursSansJetonEstRefusee() throws Exception {
         mvc.perform(get("/all")).andExpect(status().is4xxClientError());
     }
+
+    @Test
+    void routeHealthPubliqueRenvoieUp() throws Exception {
+        // sans jeton : la route de sante doit rester accessible (HEALTHCHECK Docker, CI)
+        mvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value("UP"));
+    }
 }

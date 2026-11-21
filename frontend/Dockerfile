@@ -29,3 +29,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/DepartementEmployee/browser /usr/share/nginx/html
 
 EXPOSE 8088
+
+# Lien avec le depot GitHub (necessaire pour publier l image sur ghcr.io)
+LABEL org.opencontainers.image.source="https://github.com/tasnime-eljed/DevOps-Projet-de-fin-de-module-"
+
+# Controle de sante : Docker appelle la route /health (200 = sain, sinon "unhealthy")
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12   CMD wget -q -O /dev/null http://127.0.0.1:8088/health || exit 1

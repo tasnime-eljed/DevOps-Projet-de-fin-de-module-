@@ -3,8 +3,14 @@
 #  Services : db (MySQL 8.4) -> backend + users-microservice -> frontend (Nginx)
 #
 #  Prerequis : un fichier .env a la racine (copie de .env.example)
-#  Lancement : docker compose up -d --build
+#  Developpement (images construites ici, tag "dev") :
+#      docker compose up -d --build --wait
+#  Mise en service d'une version publiee (image jamais reconstruite) :
+#      bash scripts/deploy.sh v1.0.0
 #  Acces     : http://localhost:8088  (seul port publie sur la machine)
+#
+#  Images : ${IMAGE_REGISTRY}/devops-<service>:${IMAGE_TAG}
+#           (defaut ghcr.io/tasnime-eljed/devops-<service>:dev)
 # =====================================================================
 
 # Nom du projet : prefixe des conteneurs, du reseau et du volume (devops-projet-...)
@@ -45,7 +51,7 @@ services:
   backend:
     build:
       context: ./backend
-    image: devops-projet/backend:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/tasnime-eljed}/devops-backend:${IMAGE_TAG:-dev}
     restart: unless-stopped
     environment:
       # "db" = nom du service MySQL (jamais localhost entre conteneurs)
@@ -53,17 +59,12 @@ services:
       DB_USER: ${MYSQL_APP_USER}
       DB_PASSWORD: ${MYSQL_APP_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env}
+      APP_VERSION: ${IMAGE_TAG:-dev}
       CORS_ALLOWED_ORIGINS: http://localhost:${FRONTEND_PORT:-8088},http://127.0.0.1:${FRONTEND_PORT:-8088}
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      # Le port n'est ouvert qu'une fois Spring Boot completement demarre
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8081' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
+    # healthcheck : HEALTHCHECK du Dockerfile (GET /departement_employee/health)
     networks:
       - devops-net
 
@@ -73,13 +74,14 @@ services:
   users-microservice:
     build:
       context: ./users-microservice
-    image: devops-projet/users-microservice:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/tasnime-eljed}/devops-users-microservice:${IMAGE_TAG:-dev}
     restart: unless-stopped
     environment:
       DB_URL: jdbc:mysql://db:3306/users_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DB_USER: ${MYSQL_APP_USER}
       DB_PASSWORD: ${MYSQL_APP_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env}
+      APP_VERSION: ${IMAGE_TAG:-dev}
       CORS_ALLOWED_ORIGINS: http://localhost:${FRONTEND_PORT:-8088},http://127.0.0.1:${FRONTEND_PORT:-8088}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -91,12 +93,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8082' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
+    # healthcheck : HEALTHCHECK du Dockerfile (GET /users/health)
     networks:
       - devops-net
 
@@ -106,7 +103,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    image: devops-projet/frontend:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/tasnime-eljed}/devops-frontend:${IMAGE_TAG:-dev}
     restart: unless-stopped
     ports:
       # 127.0.0.1 : application accessible uniquement depuis ce PC (pas depuis le reseau local)
@@ -116,12 +113,7 @@ services:
         condition: service_healthy
       users-microservice:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8088/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
+    # healthcheck : HEALTHCHECK du Dockerfile (GET /health)
     networks:
       - devops-net
 

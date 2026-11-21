@@ -1,0 +1,64 @@
+# =====================================================================
+#  Livraison sur tag vX.Y.Z  (ex. git tag v1.0.0 && git push origin v1.0.0)
+#   1. promotion : les images sha-<commit> deja testees et publiees par la CI
+#      recoivent le tag vX.Y.Z  -> AUCUNE reconstruction (meme image, meme digest)
+#   2. mise en service automatique dans l'environnement de test + controle de sante
+# =====================================================================
+name: Release
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REGISTRY: ghcr.io/tasnime-eljed
+
+jobs:
+
+  promote:
+    name: Promotion des images sha-commit -> ${{ github.ref_name }} (sans reconstruction)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Connexion a ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attendre les images publiees par la CI du commit
+        run: |
+          # Le tag doit pointer sur un commit de main deja passe par la CI.
+          for svc in backend users-microservice frontend; do
+            src="$IMAGE_REGISTRY/devops-$svc:sha-$GITHUB_SHA"
+            for i in $(seq 1 40); do
+              docker buildx imagetools inspect "$src" >/dev/null 2>&1 && { echo "trouvee : $src"; break; }
+              [ "$i" = 40 ] && { echo "::error::Image $src introuvable : le tag doit viser un commit de main dont la CI a reussi."; exit 1; }
+              echo "attente de $src ($i/40)..."; sleep 30
+            done
+          done
+
+      - name: Ajouter le tag ${{ github.ref_name }} (meme digest, aucune reconstruction)
+        run: |
+          for svc in backend users-microservice frontend; do
+            docker buildx imagetools create \
+              --tag "$IMAGE_REGISTRY/devops-$svc:$GITHUB_REF_NAME" \
+              "$IMAGE_REGISTRY/devops-$svc:sha-$GITHUB_SHA"
+            docker buildx imagetools inspect "$IMAGE_REGISTRY/devops-$svc:$GITHUB_REF_NAME" | head -3
+          done
+
+  deploy:
+    name: Mise en service de ${{ github.ref_name }}
+    needs: promote
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: read

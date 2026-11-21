@@ -36,6 +36,12 @@ USER spring
 # Port HTTP de l'application (server.port=8081, context path /departement_employee).
 EXPOSE 8081
 
+# Lien avec le depot GitHub (necessaire pour publier l image sur ghcr.io)
+LABEL org.opencontainers.image.source="https://github.com/tasnime-eljed/DevOps-Projet-de-fin-de-module-"
+
+# Controle de sante : Docker appelle la route /health (200 = sain, sinon "unhealthy")
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12   CMD curl -fsS -o /dev/null http://127.0.0.1:8081/departement_employee/health || exit 1
+
 # La JVM adapte sa mémoire à la limite du conteneur.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
 
