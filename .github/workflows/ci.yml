@@ -1,0 +1,162 @@
+# =====================================================================
+#  CI du monorepo : backend, users-microservice, frontend, images Docker
+#  et test de bout en bout avec Docker Compose.
+#  Aucune image n'est publiee et rien n'est deploye.
+# =====================================================================
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Permissions minimales : lecture du code uniquement
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ------------------------------------------------------------------
+  # Backend + users-microservice : compilation et tests Maven
+  # (base MySQL de test jetable fournie par un conteneur "service")
+  # ------------------------------------------------------------------
+  java:
+    name: Maven - ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: backend
+            database: departement_employee_test
+          - module: users-microservice
+            database: users_db_test
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-root
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-test-root --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      TEST_DB_URL: jdbc:mysql://127.0.0.1:3307/${{ matrix.database }}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      TEST_DB_USER: root
+      TEST_DB_PASSWORD: ci-test-root
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 17 (Temurin) + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: ${{ matrix.module }}/pom.xml
+
+      - name: Compilation + tests (mvn verify)
+        run: mvn -B verify
+
+      - name: Rapports de tests (en cas d'echec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ matrix.module }}
+          path: ${{ matrix.module }}/target/surefire-reports/
+
+  # ------------------------------------------------------------------
+  # Frontend Angular : installation, build de production, tests Karma
+  # ------------------------------------------------------------------
+  frontend:
+    name: Angular - build et tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 24 + cache npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build de production
+        run: npm run build
+
+      # Ubuntu 24.04 restreint les "user namespaces" utilises par le bac a sable de Chrome
+      - name: Autoriser Chrome Headless
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      - name: Tests unitaires (Chrome Headless)
+        run: npm run test:ci
+
+  # ------------------------------------------------------------------
+  # Images Docker + demarrage complet Docker Compose + tests de bout en bout
+  # ------------------------------------------------------------------
+  docker:
+    name: Docker Compose - build et tests de bout en bout
+    runs-on: ubuntu-latest
+    needs: [ java, frontend ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Creer un .env de CI (valeurs aleatoires, jamais affichees)
+        run: |
+          {
+            echo "MYSQL_ROOT_PASSWORD=$(openssl rand -hex 16)"
+            echo "MYSQL_APP_USER=app_user"
+            echo "MYSQL_APP_PASSWORD=$(openssl rand -hex 16)"
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "MAIL_USERNAME="
+            echo "MAIL_PASSWORD="
+            echo "ADMIN_USERNAME=admin"
+            echo "ADMIN_EMAIL=admin@example.com"
+            echo "ADMIN_PASSWORD=$(openssl rand -hex 12)"
+          } > .env
+
+      - name: Valider docker-compose.yml
+        run: docker compose config --quiet
+
+      - name: Construire les 3 images
+        run: docker compose build
+
+      - name: Demarrer la pile et attendre les healthchecks
+        run: docker compose up -d --wait --wait-timeout 300
+
+      - name: Etat des conteneurs
+        run: docker compose ps
+
+      - name: Tests de bout en bout (Nginx -> backend / users-microservice -> MySQL)
+        run: |
+          set -a; . ./.env; set +a
+          bash scripts/smoke-test.sh
+
+      - name: Persistance MySQL (redemarrage sans supprimer le volume)
+        run: |
+          docker compose down
+          docker compose up -d --wait --wait-timeout 300
+          set -a; . ./.env; set +a
+          bash scripts/smoke-test.sh
+
+      - name: Logs (en cas d'echec)
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Nettoyage (environnement CI jetable)
+        if: always()
+        run: docker compose down

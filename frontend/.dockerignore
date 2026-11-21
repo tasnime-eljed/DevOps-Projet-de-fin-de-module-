@@ -1,0 +1,18 @@
+# Contexte de build du frontend : seuls package*.json, angular.json, tsconfig*, src/, public/ et nginx.conf sont utiles
+node_modules/
+dist/
+.angular/
+coverage/
+out-tsc/
+.git
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+.editorconfig
+.env
+.env.*
+*.log
+Dockerfile
+.dockerignore
+README.md

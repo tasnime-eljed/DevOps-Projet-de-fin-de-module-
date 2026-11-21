@@ -1,0 +1,115 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
+  <div class="container-fluid">
+
+    <a class="navbar-brand" routerLink="/">
+      Gestion des Employés
+    </a>
+
+    <button
+      class="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#navbarContent"
+      aria-controls="navbarContent"
+      aria-expanded="false"
+      aria-label="Ouvrir le menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarContent">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+        <!-- Accueil -->
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/">Accueil</a>
+        </li>
+
+        <!-- Menu déroulant Employés -->
+        <li class="nav-item dropdown">
+          <a
+            class="nav-link dropdown-toggle"
+            href="#"
+            id="employeeDropdown"
+            role="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Employés
+          </a>
+
+          <ul class="dropdown-menu" aria-labelledby="employeeDropdown">
+            @if (authService.isAdmin()) {
+                <li>
+                  <a class="dropdown-item" routerLink="/add-employee">
+                    Ajouter
+                  </a>
+                </li>
+            }
+            <li>
+              <a class="dropdown-item" routerLink="/employees">
+                Lister
+              </a>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Menu déroulant Départements -->
+        <li class="nav-item dropdown">
+          <a
+            class="nav-link dropdown-toggle"
+            href="#"
+            id="departementDropdown"
+            role="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Départements
+          </a>
+
+            <ul class="dropdown-menu" aria-labelledby="departementDropdown">
+              @if (authService.isAdmin()) {
+                  <li>
+                    <a class="dropdown-item" routerLink="/listeDepartements">Gestion des départements</a>
+                  </li>
+             }
+            </ul>
+        </li>
+
+
+
+        <!-- Recherche par département -->
+         <li class="nav-item dropdown">
+           <a class="nav-link dropdown-toggle" href="#" id="rechercheDropdown"
+              role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Recherche
+           </a>
+            <ul class="dropdown-menu" aria-labelledby="rechercheDropdown">
+              <li><a class="dropdown-item" routerLink="/rechercheParDepartement">Par département</a></li>
+              <li><a class="dropdown-item" routerLink="/rechercheParNom">Par nom</a></li>
+            </ul>
+         </li>
+      </ul>
+
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="userDropdown"
+              role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              @if (authService.isloggedIn) {
+                [{{ authService.loggedUser }}]
+              } @else {
+                Compte
+              }
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+              @if (!authService.isloggedIn) {
+                <li><a class="dropdown-item" routerLink="/login">Login</a></li>
+              } @else {
+                <li><a class="dropdown-item" style="cursor: pointer" (click)="onLogout()">Logout</a></li>
+              }
+            </ul>
+          </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<router-outlet></router-outlet>
+

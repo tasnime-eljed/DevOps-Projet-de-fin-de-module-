@@ -1,0 +1,22 @@
+<div class="container mt-5">
+  <div class="row justify-content-md-center">
+    <div class="col-md-4">
+
+      @if (err) {
+        <div class="alert alert-danger">
+          <strong>{{ err }}</strong>
+        </div>
+      }
+
+      <form (ngSubmit)="onValidateEmail()">
+        <div class="mb-3">
+          <label class="form-label">Veuillez entrer le code envoyé par email</label>
+          <input type="text" name="code" [(ngModel)]="code"
+                 class="form-control" placeholder="Code de confirmation">
+        </div>
+        <button type="submit" class="btn btn-success mt-3">Valider</button>
+      </form>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,55 @@
+﻿# Java / Maven
+**/target/
+*.class
+*.jar
+
+# Angular / Node
+**/node_modules/
+**/.angular/
+**/dist/
+
+# IDE
+**/.idea/
+**/.vscode/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+
+# Database dumps
+*.sql
+
+# Secrets, certificats et clés
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/secrets/
+credentials*.json
+
+# Configurations locales Spring (ne pas versionner)
+**/application-local.properties
+**/application-local.yml
+
+# Rapports de tests / couverture
+**/coverage/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Journaux du script scripts/verify-all.ps1
+verification-logs/
+
+# Sauvegardes et exports de bases locales (donnees personnelles)
+backups/

@@ -1,0 +1,11 @@
+# Fichiers executes dans des conteneurs Linux : fins de ligne LF obligatoires,
+# meme si le depot est clone sous Windows.
+*.sh             text eol=lf
+Dockerfile       text eol=lf
+*.conf           text eol=lf
+*.yml            text eol=lf
+*.yaml           text eol=lf
+.env.example     text eol=lf
+**/mvnw          text eol=lf
+*.cmd            text eol=crlf
+*.ps1            text eol=crlf

@@ -1,0 +1,27 @@
+# Fichiers exclus du "contexte de build" envoyé à Docker.
+# Seuls pom.xml et src/ sont nécessaires au Dockerfile.
+
+# Résultats de compilation locaux (le JAR est reconstruit dans l'image)
+target/
+
+# Wrapper Maven : inutile, l'image de build fournit déjà Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Secrets et configuration locale : ne doivent JAMAIS entrer dans une image
+.env
+.env.*
+**/application-local.properties
+
+# Git, IDE, fichiers divers
+.git
+.gitignore
+.gitattributes
+.idea/
+*.iml
+.vscode/
+HELP.md
+*.log
+Dockerfile
+.dockerignore
