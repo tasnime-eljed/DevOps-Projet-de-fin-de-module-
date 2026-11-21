@@ -40,4 +40,20 @@ describe('tokenInterceptor', () => {
     expect(req.request.headers.has('Authorization')).toBeFalse();
     req.flush(null);
   });
+
+  it('should not send "Bearer null" when the user is not logged in', () => {
+    auth.token = null as unknown as string;
+    spyOn(auth, 'getToken').and.returnValue(null as unknown as string);
+    http.get('/departement_employee/api').subscribe();
+    const req = controller.expectOne('/departement_employee/api');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    req.flush([]);
+  });
+
+  it('should not add the Authorization header to the public /health route', () => {
+    http.get('/departement_employee/health').subscribe();
+    const req = controller.expectOne('/departement_employee/health');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    req.flush({ status: 'UP' });
+  });
 });
