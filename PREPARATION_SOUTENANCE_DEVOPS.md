@@ -21,7 +21,7 @@
 | Tests backend (17 tests) | ✅ vérifié | journal du 21/11 : `Tests run: 17, Failures: 0, Errors: 0`, `BUILD SUCCESS` |
 | Tests users-microservice (6 tests) | ✅ vérifié | journal du 21/11 : `Tests run: 6, Failures: 0, Errors: 0`, `BUILD SUCCESS` |
 | Frontend : build / tests | ✅ vérifié | 21/11 : `npm run build` → « Application bundle generation complete » (simple avertissement de budget) ; `npm run test:ci` → `TOTAL: 15 SUCCESS` |
-| Pipeline GitHub Actions | ⏳ prête, pas encore exécutée | s'exécutera au premier push sur `main` |
+| Pipeline GitHub Actions | ✅ vérifié | 21/11, run 44946303887 (commit `355a5dd`) : 4 jobs verts en 3 min 18 — Maven backend 17 tests, Maven users 6 tests, Angular 15 tests, Docker Compose + smoke test 7/7 avant et après redémarrage |
 
 **Avant la soutenance**, lance une fois :
 ```powershell
