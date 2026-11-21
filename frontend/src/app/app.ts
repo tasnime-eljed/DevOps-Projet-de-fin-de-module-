@@ -1,6 +1,8 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { Auth } from './services/auth';
+import { environment } from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -11,9 +13,18 @@ import { Auth } from './services/auth';
 export class App implements OnInit {
   protected readonly title = signal('DepartementEmployee');
 
-  constructor(public authService: Auth, private router: Router) {}
+  // version en service, lue sur la route publique /health du backend (pied de page)
+  protected readonly version = signal('');
+
+  constructor(public authService: Auth, private router: Router, private http: HttpClient) {}
 
   ngOnInit(): void {
+    this.http.get<{ version: string }>(environment.apiURL.replace(/\/api$/, '') + '/health')
+      .subscribe({
+        next: h => this.version.set(h.version),
+        error: () => this.version.set('indisponible')
+      });
+
     // recharge le token sauvegardé et décode le nom + les rôles
     this.authService.loadToken();
 
