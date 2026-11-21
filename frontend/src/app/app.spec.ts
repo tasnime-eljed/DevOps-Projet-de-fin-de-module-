@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
 
 // Composant vide utilisé comme destination de navigation (ex. redirection vers /login)
@@ -32,5 +32,15 @@ describe('App', () => {
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.navbar-brand')?.textContent).toContain('Gestion des Employés');
+  });
+
+  it('should display the deployed version from /health in the footer', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(req => req.url.endsWith('/health')).flush({ version: 'v9.9.9', status: 'UP' });
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.app-version')?.textContent).toContain('v9.9.9');
   });
 });
