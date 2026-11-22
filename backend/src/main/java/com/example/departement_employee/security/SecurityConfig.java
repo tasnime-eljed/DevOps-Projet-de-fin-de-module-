@@ -50,7 +50,7 @@ public class SecurityConfig {
                 }))
                 .authorizeHttpRequests(requests -> requests
                         // route de santé publique (HEALTHCHECK Docker, CI, déploiement)
-                        .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                        // DEMO : regression volontaire, /health n est plus public
                         .requestMatchers(HttpMethod.GET, "/**").hasAnyAuthority("ADMIN", "USER")
                         //.requestMatchers(HttpMethod.POST, "/**").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/**").hasAuthority("ADMIN")
