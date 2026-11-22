@@ -8,7 +8,7 @@ Application full-stack de **gestion des employés et des départements**, organi
 - une base **MySQL 8.4**.
 
 L'ensemble se construit et démarre avec **une seule commande Docker Compose**. Une pipeline **GitHub Actions** compile, teste et vérifie les images Docker à chaque push.
-
+docker compose up -d --no-build --wait
 ---
 
 ## 1. Architecture
